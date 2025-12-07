@@ -15,7 +15,7 @@ public class DataRetriever {
 
     public List<Category> getAllCategories() throws SQLException {
         Connection connection = dbConnection.getDBConnection();
-        PreparedStatement statement = connection.prepareStatement("SELECT * FROM product_category");
+        PreparedStatement statement = connection.prepareStatement("SELECT id, name FROM product_category");
         ResultSet rs = statement.executeQuery();
 
         List<Category> categories = new ArrayList<>();
@@ -27,20 +27,30 @@ public class DataRetriever {
 
     public List<Product> getProductList(int page, int size) throws SQLException {
         Connection connection = dbConnection.getDBConnection();
-        PreparedStatement statement = connection.prepareStatement(
-            "SELECT * FROM product ORDER BY id LIMIT ? OFFSET ?");
+
+        String query = """
+            SELECT p.id, p.name, p.price, p.creation_datetime, c.id AS category_id, c.name AS category_name
+            FROM product p
+            LEFT JOIN product_category c ON p.id = c.product_id
+            ORDER BY p.id
+            LIMIT ? OFFSET ?
+        """;
+
+        PreparedStatement statement = connection.prepareStatement(query);
         statement.setInt(1, size);
         statement.setInt(2, (page - 1) * size);
 
         ResultSet rs = statement.executeQuery();
-        List<Product> products = new ArrayList<>();
 
+        List<Product> products = new ArrayList<>();
         while (rs.next()) {
+            Category category = new Category(rs.getInt("category_id"), rs.getString("category_name"));
             products.add(new Product(
-                rs.getInt("id"),
-                rs.getString("name"),
-                rs.getDouble("price"),
-                rs.getTimestamp("creation_datetime").toInstant()
+                    rs.getInt("id"),
+                    rs.getString("name"),
+                    rs.getDouble("price"),
+                    rs.getTimestamp("creation_datetime").toInstant(),
+                    category
             ));
         }
         return products;
@@ -49,8 +59,12 @@ public class DataRetriever {
     public List<Product> getProductsByCriteria(String productName, String categoryName,
                                                Instant creationMin, Instant creationMax) throws SQLException {
 
-        StringBuilder query = new StringBuilder(
-            "SELECT p.* FROM product p LEFT JOIN product_category c ON p.id=c.product_id WHERE 1=1");
+        StringBuilder query = new StringBuilder("""
+            SELECT p.id, p.name, p.price, p.creation_datetime, c.id AS category_id, c.name AS category_name
+            FROM product p
+            LEFT JOIN product_category c ON p.id=c.product_id
+            WHERE 1=1
+        """);
 
         if (productName != null) query.append(" AND p.name ILIKE '%").append(productName).append("%'");
         if (categoryName != null) query.append(" AND c.name ILIKE '%").append(categoryName).append("%'");
@@ -62,15 +76,17 @@ public class DataRetriever {
         ResultSet rs = statement.executeQuery();
 
         List<Product> products = new ArrayList<>();
+
         while (rs.next()) {
+            Category category = new Category(rs.getInt("category_id"), rs.getString("category_name"));
             products.add(new Product(
-                rs.getInt("id"),
-                rs.getString("name"),
-                rs.getDouble("price"),
-                rs.getTimestamp("creation_datetime").toInstant()
+                    rs.getInt("id"),
+                    rs.getString("name"),
+                    rs.getDouble("price"),
+                    rs.getTimestamp("creation_datetime").toInstant(),
+                    category
             ));
         }
-
         return products;
     }
 

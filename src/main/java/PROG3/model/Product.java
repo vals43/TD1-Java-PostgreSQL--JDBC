@@ -21,4 +21,14 @@ public class Product {
         return category.getName();
     }
 
+    @Override
+    public String toString() {
+        return "Product{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                ", price=" + price +
+                ", creationDatetime=" + creationDatetime +
+                ", category=" + category +
+                '}';
+    }
 }

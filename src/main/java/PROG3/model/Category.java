@@ -17,8 +17,11 @@ public class Category {
         return name;
     }
 
-
+    @Override
     public String toString() {
-        return id + " - " + name;
+        return "Category{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                '}';
     }
 }
