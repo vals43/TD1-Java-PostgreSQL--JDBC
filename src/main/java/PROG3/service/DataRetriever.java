@@ -6,8 +6,7 @@ import PROG3.model.Product;
 
 import java.sql.*;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class DataRetriever {
 
@@ -42,18 +41,35 @@ public class DataRetriever {
 
         ResultSet rs = statement.executeQuery();
 
-        List<Product> products = new ArrayList<>();
+        Map<Integer, Product> productMap = new LinkedHashMap<>();
+
         while (rs.next()) {
-            Category category = new Category(rs.getInt("category_id"), rs.getString("category_name"));
-            products.add(new Product(
-                    rs.getInt("id"),
+            int productId = rs.getInt("id");
+
+            // si product pas encore créé → le créer
+            productMap.putIfAbsent(productId, new Product(
+                    productId,
                     rs.getString("name"),
                     rs.getDouble("price"),
                     rs.getTimestamp("creation_datetime").toInstant(),
-                    category
+                    new ArrayList<>()
             ));
+
+            // Ajouter catégorie si elle existe et pas déjà ajoutée
+            int catId = rs.getInt("category_id");
+            if (catId != 0) {
+                Product prod = productMap.get(productId);
+
+                boolean exists = prod.getCategories().stream()
+                        .anyMatch(c -> c.getId() == catId);
+
+                if (!exists) {
+                    prod.getCategories().add(new Category(catId, rs.getString("category_name")));
+                }
+            }
         }
-        return products;
+
+        return new ArrayList<>(productMap.values());
     }
 
     public List<Product> getProductsByCriteria(String productName, String categoryName,
@@ -66,28 +82,42 @@ public class DataRetriever {
             WHERE 1=1
         """);
 
-        if (productName != null) query.append(" AND p.name ILIKE '%").append(productName).append("%'");
-        if (categoryName != null) query.append(" AND c.name ILIKE '%").append(categoryName).append("%'");
-        if (creationMin != null) query.append(" AND p.creation_datetime >= '").append(Timestamp.from(creationMin)).append("'");
-        if (creationMax != null) query.append(" AND p.creation_datetime <= '").append(Timestamp.from(creationMax)).append("'");
+        if (productName != null) query.append(" AND p.name ILIKE '%" + productName + "%'");
+        if (categoryName != null) query.append(" AND c.name ILIKE '%"+categoryName+"%'");
+        if (creationMin != null) query.append(" AND p.creation_datetime >= '"+Timestamp.from(creationMin)+"'");
+        if (creationMax != null) query.append(" AND p.creation_datetime <= '"+Timestamp.from(creationMax)+"'");
 
         Connection connection = dbConnection.getDBConnection();
         PreparedStatement statement = connection.prepareStatement(query.toString());
         ResultSet rs = statement.executeQuery();
 
-        List<Product> products = new ArrayList<>();
+        Map<Integer, Product> productMap = new LinkedHashMap<>();
 
         while (rs.next()) {
-            Category category = new Category(rs.getInt("category_id"), rs.getString("category_name"));
-            products.add(new Product(
-                    rs.getInt("id"),
+            int productId = rs.getInt("id");
+
+            productMap.putIfAbsent(productId, new Product(
+                    productId,
                     rs.getString("name"),
                     rs.getDouble("price"),
                     rs.getTimestamp("creation_datetime").toInstant(),
-                    category
+                    new ArrayList<>()
             ));
+
+            int catId = rs.getInt("category_id");
+            if (catId != 0) {
+                Product prod = productMap.get(productId);
+
+                boolean exists = prod.getCategories().stream()
+                        .anyMatch(c -> c.getId() == catId);
+
+                if (!exists) {
+                    prod.getCategories().add(new Category(catId, rs.getString("category_name")));
+                }
+            }
         }
-        return products;
+
+        return new ArrayList<>(productMap.values());
     }
 
     public List<Product> getProductsByCriteria(String productName, String categoryName,
