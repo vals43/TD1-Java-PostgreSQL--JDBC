@@ -33,5 +33,6 @@ public class Main {
         System.out.println(retriever.getProductsByCriteria(null, null, null, null, 1, 10));
         System.out.println(retriever.getProductsByCriteria("Dell", null, null, null, 1, 5));
         System.out.println(retriever.getProductsByCriteria(null, "informatique", null, null, 1, 10));
+
     }
 }
