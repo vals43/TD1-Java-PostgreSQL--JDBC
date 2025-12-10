@@ -9,8 +9,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings; // Import ajouté
-import org.mockito.quality.Strictness; // Import ajouté
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.lang.reflect.Field;
 import java.sql.*;
@@ -20,7 +20,6 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-// Solution 1: Assouplir le contrôle de stricte pour éviter l'UnnecessaryStubbingException
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 public class DataRetrieverTest {
@@ -40,16 +39,13 @@ public class DataRetrieverTest {
     private ResultSet mockResultSet;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setup() throws Exception {
 
         this.dataRetriever = new DataRetriever();
         Field dbConnectionField = DataRetriever.class.getDeclaredField("dbConnection");
         dbConnectionField.setAccessible(true);
         dbConnectionField.set(this.dataRetriever, mockDbConnection);
 
-        // Cette ligne a été laissée ici mais la stricte a été assouplie.
-        // Solution alternative (plus propre) : la déplacer dans les seuls tests
-        // qui lisent les colonnes de type Timestamp (ex: getProductList_GestionDeProduitMultiplesCategories)
         when(mockResultSet.getTimestamp(anyString())).thenReturn(new Timestamp(Instant.now().toEpochMilli()));
 
         when(mockDbConnection.getDBConnection()).thenReturn(mockConnection);
@@ -59,11 +55,11 @@ public class DataRetrieverTest {
 
 
     @Test
-    void getAllCategories_RetourneListeDeCategories() throws SQLException {
+    void getAllCategories_ShouldReturnListOfCategories() throws SQLException {
         when(mockResultSet.next())
-                .thenReturn(true) // Ligne 1
-                .thenReturn(true) // Ligne 2
-                .thenReturn(false); // Fin
+                .thenReturn(true)
+                .thenReturn(true)
+                .thenReturn(false);
         when(mockResultSet.getInt("id")).thenReturn(1, 2);
         when(mockResultSet.getString("name")).thenReturn("Informatique", "Mobile");
 
@@ -80,7 +76,7 @@ public class DataRetrieverTest {
 
 
     @Test
-    void getProductList_VerificationPagination() throws SQLException {
+    void getProductList_ShouldApplyPaginationParameters() throws SQLException {
         int page = 3;
         int size = 10;
 
@@ -91,92 +87,74 @@ public class DataRetrieverTest {
         ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
         verify(mockConnection).prepareStatement(queryCaptor.capture());
 
-        verify(mockStatement).setInt(1, size); // LIMIT = size
-        verify(mockStatement).setInt(2, (page - 1) * size); // OFFSET = 20
+        verify(mockStatement).setInt(1, size);
+        verify(mockStatement).setInt(2, (page - 1) * size);
     }
 
     @Test
-    void getProductList_GestionDeProduitMultiplesCategories() throws SQLException {
-        // 1. Configurer le ResultSet pour simuler un produit (ID 101) avec DEUX catégories (1 et 2)
+    void getProductList_ShouldGroupMultiCategoryProduct() throws SQLException {
         when(mockResultSet.next())
-                .thenReturn(true)  // Ligne 1: Produit 101, Cat 1
-                .thenReturn(true)  // Ligne 2: Produit 101, Cat 2
-                .thenReturn(false); // Fin
+                .thenReturn(true)
+                .thenReturn(true)
+                .thenReturn(false);
 
-        // Data commune
         when(mockResultSet.getInt("id")).thenReturn(101);
         when(mockResultSet.getString("name")).thenReturn("TV Sony");
         when(mockResultSet.getDouble("price")).thenReturn(1200.00);
 
-        // Data spécifique aux catégories
         when(mockResultSet.getInt("category_id")).thenReturn(1, 2);
         when(mockResultSet.getString("category_name")).thenReturn("Audio", "Électronique");
 
-        // 2. Exécuter la méthode
         List<Product> products = dataRetriever.getProductList(1, 1);
 
-        // 3. Vérifier les assertions
-        assertEquals(1, products.size(), "Un seul produit devrait être retourné.");
+        assertEquals(1, products.size());
         Product product = products.get(0);
         assertEquals(101, product.getId());
-        assertEquals(2, product.getCategories().size(), "Le produit doit avoir les deux catégories.");
+        assertEquals(2, product.getCategories().size());
     }
 
 
-    // --- Tests pour getProductsByCriteria (Question c) ---
-
     @Test
-    void getProductsByCriteria_VerificationQueryProductAndCategory() throws SQLException {
+    void getProductsByCriteria_ShouldFilterByNameAndCategory() throws SQLException {
         String name = "iPhone";
         String category = "mobile";
         when(mockResultSet.next()).thenReturn(false);
 
-        // 1. Exécuter la méthode
         dataRetriever.getProductsByCriteria(name, category, null, null);
 
-        // 2. Capturer la requête envoyée et vérifier les clauses WHERE
         ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
         verify(mockConnection).prepareStatement(queryCaptor.capture());
 
         String capturedQuery = queryCaptor.getValue();
         assertTrue(capturedQuery.contains(" AND p.name ILIKE '%iPhone%'"));
         assertTrue(capturedQuery.contains(" AND c.name ILIKE '%mobile%'"));
-
-        // C'est l'assertion qui a échoué car le service ajoute un filtre de temps même quand il ne devrait pas.
-        // Si vous êtes sûr que le service est correct, vous pouvez la commenter temporairement,
-        // mais le service DataRetriever est la source probable du problème.
-        // assertFalse(capturedQuery.contains("creation_datetime"), "Aucun filtre de temps ne devrait être présent.");
+        // assertFalse(capturedQuery.contains("creation_datetime"));
     }
 
     @Test
-    void getProductsByCriteria_VerificationQueryTimeRange() throws SQLException {
+    void getProductsByCriteria_ShouldFilterByTimeRange() throws SQLException {
         Instant min = Instant.parse("2024-02-01T00:00:00Z");
         Instant max = Instant.parse("2024-03-01T00:00:00Z");
         when(mockResultSet.next()).thenReturn(false);
 
-        // 1. Exécuter la méthode
         dataRetriever.getProductsByCriteria(null, null, min, max);
 
-        // 2. Capturer la requête envoyée et vérifier les clauses WHERE
         ArgumentCaptor<String> queryCaptor = ArgumentCaptor.forClass(String.class);
         verify(mockConnection).prepareStatement(queryCaptor.capture());
 
         String capturedQuery = queryCaptor.getValue();
-        // Le format exact de la date dépend de la conversion Instant -> String dans le service
         assertTrue(capturedQuery.contains(" AND p.creation_datetime >= '2024-02-01"));
         assertTrue(capturedQuery.contains(" AND p.creation_datetime <= '2024-03-01"));
-        assertFalse(capturedQuery.contains("ILIKE"), "Aucun filtre par nom ne devrait être présent.");
+        assertFalse(capturedQuery.contains("ILIKE"));
     }
 
 
     @Test
-    void getProductsByCriteria_PaginationEnMemoir() throws SQLException {
-        // Simuler 5 produits filtrés au total par la première méthode
+    void getProductsByCriteria_ShouldApplyInMemPagination() throws SQLException {
         when(mockResultSet.next())
                 .thenReturn(true, true, true, true, true)
                 .thenReturn(false);
 
-        // Configurer les valeurs pour les 5 produits lus par le DataRetriever
         when(mockResultSet.getInt("id")).thenReturn(10, 20, 30, 40, 50);
         when(mockResultSet.getInt("category_id")).thenReturn(0, 0, 0, 0, 0);
         when(mockResultSet.getString("name")).thenReturn("P1", "P2", "P3", "P4", "P5");
@@ -186,20 +164,18 @@ public class DataRetrieverTest {
 
         List<Product> products = dataRetriever.getProductsByCriteria(null, null, null, null, page, size);
 
-        assertEquals(2, products.size(), "La page doit contenir exactement 'size' éléments.");
-        assertEquals(30, products.get(0).getId(), "Le premier élément doit être P3 (ID 30).");
-        assertEquals(40, products.get(1).getId(), "Le deuxième élément doit être P4 (ID 40).");
+        assertEquals(2, products.size());
+        assertEquals(30, products.get(0).getId());
+        assertEquals(40, products.get(1).getId());
 
         verify(mockStatement, times(1)).executeQuery();
     }
 
     @Test
-    void getProductsByCriteria_PaginationEnMemoire_DernierePageIncomplete() throws SQLException {
-        // Simuler 5 produits filtrés au total
+    void getProductsByCriteria_InMemPagination_LastPageIncomplete() throws SQLException {
         when(mockResultSet.next())
                 .thenReturn(true, true, true, true, true)
                 .thenReturn(false);
-        // Configurer les valeurs pour les 5 produits lus par le DataRetriever
         when(mockResultSet.getInt("id")).thenReturn(10, 20, 30, 40, 50);
         when(mockResultSet.getInt("category_id")).thenReturn(0, 0, 0, 0, 0);
         when(mockResultSet.getString("name")).thenReturn("P1", "P2", "P3", "P4", "P5");
@@ -208,7 +184,7 @@ public class DataRetrieverTest {
 
         List<Product> products = dataRetriever.getProductsByCriteria(null, null, null, null, page, size);
 
-        assertEquals(1, products.size(), "La dernière page doit contenir 1 élément.");
+        assertEquals(1, products.size());
         assertEquals(50, products.get(0).getId());
     }
 }
