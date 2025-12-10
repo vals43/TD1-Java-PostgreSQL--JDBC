@@ -10,6 +10,6 @@ VALUES ('Informatique', 1),
        ('Téléphonie', 2),
        ('Audio', 3),
        ('Accessoires', 4),
-       ('Informatique', 5);
-    ('Bureau', 5);
-    ('Mobile', 2);
+       ('Informatique', 5),
+        ('Bureau', 5),
+        ('Mobile', 2);
